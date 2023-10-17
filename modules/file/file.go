@@ -2,6 +2,7 @@ package file
 
 import (
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,8 @@ import (
 )
 
 type File struct {
-	curDir string
+	copyPath string
+	curDir   string
 }
 
 func New(path string) *File {
@@ -46,6 +48,43 @@ func (f *File) Back() ([]fileinfo.FileInfo, error) {
 	f.curDir = "/" + newPath
 
 	return getFiles("/" + newPath)
+}
+
+func (f *File) Copy(name string) error {
+	f.copyPath = filepath.Join(f.curDir, name)
+
+	return nil
+}
+
+func (f *File) PasteReader() (io.Reader, string, error) {
+	if f.copyPath == "" {
+		return nil, "", errors.New("nothing in buffer")
+	}
+
+	fi, err := os.Open(f.copyPath)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return fi, filepath.Base(f.copyPath), nil
+}
+
+func (f *File) Paste(name string, r io.Reader) error {
+	fi, err := os.Create(filepath.Join(f.curDir, name))
+	if err != nil {
+		return err
+	}
+	defer fi.Close()
+
+	if _, err := io.Copy(fi, r); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *File) Delete(name string) error {
+	return os.RemoveAll(filepath.Join(f.curDir, name))
 }
 
 func getFiles(path string) ([]fileinfo.FileInfo, error) {

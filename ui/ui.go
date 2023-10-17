@@ -12,6 +12,8 @@ type Filer interface {
 }
 
 type App struct {
+	app *tview.Application
+
 	grid *tview.Grid
 
 	leftTable  *tview.Table
@@ -88,11 +90,31 @@ func (a *App) Run() error {
 	updateTable(a.leftTable, fi)
 	updateTable(a.rightTable, fi)
 
-	if err := tview.NewApplication().SetRoot(a.grid, true).EnableMouse(true).Run(); err != nil {
+	app := tview.NewApplication()
+
+	a.app = app
+	a.app.SetInputCapture(a.handleInput)
+
+	if err := a.app.SetRoot(a.grid, true).SetFocus(a.leftTable).EnableMouse(true).Run(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (a *App) handleInput(e *tcell.EventKey) *tcell.EventKey {
+	switch e.Key() {
+	case tcell.KeyCtrlH:
+		a.app.SetFocus(a.leftTable)
+	case tcell.KeyLeft:
+		a.app.SetFocus(a.leftTable)
+	case tcell.KeyCtrlL:
+		a.app.SetFocus(a.rightTable)
+	case tcell.KeyRight:
+		a.app.SetFocus(a.rightTable)
+	}
+
+	return e
 }
 
 func newGrid() *tview.Grid {
@@ -107,7 +129,7 @@ func newGrid() *tview.Grid {
 }
 
 func newTable() *tview.Table {
-	table := tview.NewTable().SetSelectable(true, false)
+	table := tview.NewTable().SetSelectable(true, false).SetEvaluateAllRows(true)
 	table.SetBorder(true)
 
 	return table
@@ -117,19 +139,19 @@ func tableHeader(t *tview.Table) {
 	t.SetCell(0, 0, tview.NewTableCell("Name").SetAlign(tview.AlignLeft).SetSelectable(false)).
 		SetCell(0, 1, tview.NewTableCell("Size").SetAlign(tview.AlignLeft).SetSelectable(false)).
 		SetCell(0, 2, tview.NewTableCell("Permision").SetAlign(tview.AlignRight).SetSelectable(false)).
-		SetFixed(0, 0).
-		SetFixed(0, 1).
-		SetFixed(0, 2)
+		SetFixed(1, 3)
 	t.SetCell(1, 0, tview.NewTableCell("..").SetAlign(tview.AlignLeft).SetSelectable(true))
+	t.SetCell(1, 1, tview.NewTableCell("").SetAlign(tview.AlignLeft).SetSelectable(true))
+	t.SetCell(1, 2, tview.NewTableCell("").SetAlign(tview.AlignLeft).SetSelectable(true))
 }
 
 func updateTable(t *tview.Table, fi []fileinfo.FileInfo) {
 	t.Clear()
 	tableHeader(t)
 	for i := range fi {
-		t.SetCell(i+2, 0, tview.NewTableCell(fi[i].Name).SetAlign(tview.AlignLeft).SetExpansion(2).SetSelectable(true))
-		t.SetCell(i+2, 1, tview.NewTableCell(fi[i].Size).SetAlign(tview.AlignLeft).SetExpansion(2).SetSelectable(true))
-		t.SetCell(i+2, 2, tview.NewTableCell(fi[i].Permision).SetAlign(tview.AlignRight).SetExpansion(2).SetSelectable(true))
+		t.SetCell(i+2, 0, tview.NewTableCell(fi[i].Name).SetAlign(tview.AlignLeft).SetExpansion(1).SetSelectable(true))
+		t.SetCell(i+2, 1, tview.NewTableCell(fi[i].Size).SetAlign(tview.AlignLeft).SetExpansion(1).SetSelectable(true))
+		t.SetCell(i+2, 2, tview.NewTableCell(fi[i].Permision).SetAlign(tview.AlignRight).SetExpansion(1).SetSelectable(true))
 	}
 
 	t.ScrollToBeginning()

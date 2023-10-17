@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/TiregeRRR/kyofi/file"
+	"github.com/TiregeRRR/kyofi/modules/file"
 	"github.com/TiregeRRR/kyofi/ui"
 )
 

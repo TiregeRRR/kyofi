@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	fileinfo "github.com/TiregeRRR/kyofi/file_info"
@@ -12,12 +11,17 @@ import (
 	"github.com/rivo/tview"
 )
 
+type Copier interface {
+	Next() bool
+	File() (fileinfo.CopyInfo, error)
+}
+
 type Filer interface {
 	Open(string) ([]fileinfo.FileInfo, error)
 	Back() ([]fileinfo.FileInfo, error)
 	Copy(string) error
-	PasteReader() (io.Reader, string, error)
-	Paste(string, io.Reader) error
+	PasteReader() (fileinfo.Copier, error)
+	Paste(fileinfo.Copier) error
 	Delete(string) error
 }
 
@@ -330,16 +334,16 @@ func copy(table *tview.Table, filer Filer) error {
 }
 
 func paste(dst Filer, src Filer) (string, error) {
-	r, name, err := src.PasteReader()
+	cop, err := src.PasteReader()
 	if err != nil {
 		return "", err
 	}
 
-	if err := dst.Paste(name, r); err != nil {
+	if err := dst.Paste(cop); err != nil {
 		return "", err
 	}
 
-	return name, nil
+	return "", nil
 }
 
 func delete(table *tview.Table, filer Filer) error {

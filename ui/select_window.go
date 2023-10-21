@@ -29,12 +29,7 @@ func (a *App) selectWindow() error {
 
 func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 	slc := a.selectTable()
-	if left {
-		a.grid.RemoveItem(p).AddItem(slc, 0, 0, 15, 8, 0, 80, true)
-	} else {
-		a.grid.RemoveItem(p).AddItem(slc, 0, 8, 15, 8, 0, 80, false)
-	}
-	a.app.SetFocus(slc)
+	a.swapContexts(p, slc)
 
 	slc.SetSelectedFunc(func(row, column int) {
 		name := slc.GetCell(row, column).Text
@@ -52,24 +47,13 @@ func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 				a.rightTable.SetBorder(true).SetTitle("File")
 			}
 		case "Minio":
-			form := a.minioSelectForm(left)
-			a.grid.RemoveItem(slc)
-			if left {
-				a.grid.AddItem(form, 0, 0, 15, 8, 0, 80, true)
-				a.leftSide = form
-			} else {
-				a.grid.AddItem(form, 0, 8, 15, 8, 0, 80, false)
-				a.rightSide = form
-			}
-
-			a.app.SetFocus(form)
+			form := a.minioSelectForm(p, left)
+			a.swapContexts(slc, form)
 
 			return
 		}
 
-		a.grid.RemoveItem(slc)
-		a.grid.AddItem(p, 0, 0, 15, 8, 0, 80, true)
-		a.app.SetFocus(p)
+		a.swapContexts(slc, p)
 		if err := a.update(); err != nil {
 			a.err(err)
 		}
@@ -86,21 +70,11 @@ func (a *App) selectTable() *tview.Table {
 	return table
 }
 
-func (a *App) minioSelectForm(left bool) *tview.Form {
+func (a *App) minioSelectForm(p tview.Primitive, left bool) *tview.Form {
 	form := primitives.NewForm()
 
 	exit := func() {
-		a.grid.RemoveItem(form)
-
-		if left {
-			a.grid.AddItem(a.leftTable, 0, 0, 15, 8, 0, 80, true)
-			a.leftSide = a.leftTable
-			a.app.SetFocus(a.leftSide)
-		} else {
-			a.grid.AddItem(a.rightTable, 0, 8, 15, 8, 0, 80, false)
-			a.rightSide = a.rightTable
-			a.app.SetFocus(a.rightSide)
-		}
+		a.swapContexts(form, p)
 	}
 
 	var conn atomic.Bool
@@ -124,17 +98,7 @@ func (a *App) minioSelectForm(left bool) *tview.Form {
 			return
 		}
 
-		a.grid.RemoveItem(form)
-
-		if left {
-			a.grid.AddItem(a.leftTable, 0, 0, 15, 8, 0, 80, true)
-			a.leftSide = a.leftTable
-			a.leftFiler = m
-		} else {
-			a.grid.AddItem(a.rightTable, 0, 8, 15, 8, 0, 80, false)
-			a.rightSide = a.rightTable
-			a.rightFiler = m
-		}
+		a.swapContextsWithFiler(form, p, m)
 
 		if err := a.update(); err != nil {
 			a.err(err)

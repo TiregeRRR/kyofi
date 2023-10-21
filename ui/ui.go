@@ -302,6 +302,32 @@ func (a *App) delete() {
 	a.app.SetFocus(a.input)
 }
 
+func (a *App) swapContextsWithFiler(cur tview.Primitive, tar tview.Primitive, fi Filer) {
+	switch {
+	case a.leftSide == cur:
+		a.leftFiler = fi
+	case a.rightSide == cur:
+		a.rightFiler = fi
+	}
+
+	a.swapContexts(cur, tar)
+}
+
+func (a *App) swapContexts(cur tview.Primitive, tar tview.Primitive) {
+	switch {
+	case a.leftSide == cur:
+		a.grid.RemoveItem(cur)
+		a.grid.AddItem(tar, 0, 0, 15, 8, 0, 80, true)
+		a.leftSide = tar
+		a.app.SetFocus(a.leftSide)
+	case a.rightSide == cur:
+		a.grid.RemoveItem(cur)
+		a.grid.AddItem(tar, 0, 0, 15, 8, 0, 80, true)
+		a.rightSide = tar
+		a.app.SetFocus(a.rightSide)
+	}
+}
+
 func (a *App) getNameInFocus() string {
 	switch {
 	case a.leftTable.HasFocus():

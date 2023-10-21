@@ -3,9 +3,9 @@ package file
 import (
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
 	fileinfo "github.com/TiregeRRR/kyofi/file_info"
 	"github.com/TiregeRRR/kyofi/modules/utils"
@@ -42,12 +42,9 @@ func (f *File) Open(path string) ([]fileinfo.FileInfo, error) {
 }
 
 func (f *File) Back() ([]fileinfo.FileInfo, error) {
-	list := strings.Split(f.curDir, "/")
-	newPath := filepath.Join(list[0 : len(list)-1]...)
+	f.curDir = filepath.Dir(f.curDir)
 
-	f.curDir = "/" + newPath
-
-	return getFiles("/" + newPath)
+	return getFiles(f.curDir)
 }
 
 func (f *File) Copy(name string) error {
@@ -56,28 +53,78 @@ func (f *File) Copy(name string) error {
 	return nil
 }
 
-func (f *File) PasteReader() (io.Reader, string, error) {
+func (f *File) PasteReader() (fileinfo.Copier, error) {
 	if f.copyPath == "" {
-		return nil, "", errors.New("nothing in buffer")
+		return nil, errors.New("nothing in buffer")
 	}
 
-	fi, err := os.Open(f.copyPath)
+	inf, err := os.Stat(f.copyPath)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	return fi, filepath.Base(f.copyPath), nil
+	if !inf.IsDir() {
+		return &FileCopier{
+			base:  filepath.Dir(f.copyPath),
+			paths: []string{f.copyPath},
+			size:  inf.Size(),
+		}, nil
+	}
+
+	absPart := filepath.Dir(f.copyPath) + "/"
+
+	cop := FileCopier{
+		base: absPart,
+	}
+	if err := filepath.WalkDir(f.copyPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		cop.paths = append(cop.paths, path)
+
+		inf, err := d.Info()
+		if err != nil {
+			return err
+		}
+
+		cop.size += inf.Size()
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return &cop, nil
 }
 
-func (f *File) Paste(name string, r io.Reader) error {
-	fi, err := os.Create(filepath.Join(f.curDir, name))
-	if err != nil {
-		return err
-	}
-	defer fi.Close()
+func (f *File) Paste(cop fileinfo.Copier) error {
+	for cop.Next() {
+		c, err := cop.File()
+		if err != nil {
+			return err
+		}
 
-	if _, err := io.Copy(fi, r); err != nil {
-		return err
+		if c.Path != "" {
+			if err := os.MkdirAll(c.Path, 0770); err != nil {
+				return err
+			}
+		}
+
+		cf, err := os.Create(filepath.Join(c.Path, c.Name))
+		if err != nil {
+			return err
+		}
+
+		if _, err := io.Copy(cf, c.Source); err != nil {
+			return err
+		}
+
+		cf.Close()
 	}
 
 	return nil

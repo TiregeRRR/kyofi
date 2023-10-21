@@ -3,7 +3,6 @@ package minio
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net/http"
 	"time"
 
@@ -93,11 +92,11 @@ func (m *Minio) Copy(name string) error {
 	return nil
 }
 
-func (m *Minio) PasteReader() (io.Reader, string, error) {
-	return nil, "", nil
+func (m *Minio) PasteReader() (fileinfo.Copier, error) {
+	return nil, nil
 }
 
-func (m *Minio) Paste(string, io.Reader) error {
+func (m *Minio) Paste(cop fileinfo.Copier) error {
 	return nil
 }
 

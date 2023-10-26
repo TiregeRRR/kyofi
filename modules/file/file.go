@@ -14,10 +14,15 @@ import (
 type File struct {
 	copyPath string
 	curDir   string
+
+	progress chan string
 }
 
 func New(path string) *File {
-	return &File{curDir: path}
+	return &File{
+		curDir:   path,
+		progress: make(chan string),
+	}
 }
 
 func (f *File) Open(path string) ([]fileinfo.FileInfo, error) {
@@ -68,6 +73,7 @@ func (f *File) PasteReader() (fileinfo.Copier, error) {
 			base:  filepath.Dir(f.copyPath),
 			paths: []string{f.copyPath},
 			size:  inf.Size(),
+			pCh:   f.progress,
 		}, nil
 	}
 
@@ -75,6 +81,7 @@ func (f *File) PasteReader() (fileinfo.Copier, error) {
 
 	cop := FileCopier{
 		base: absPart,
+		pCh:  f.progress,
 	}
 	if err := filepath.WalkDir(f.copyPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -120,11 +127,22 @@ func (f *File) Paste(cop fileinfo.Copier) error {
 			return err
 		}
 
-		if _, err := io.Copy(cf, c.Source); err != nil {
-			return err
+		if c.Size > 1<<20 {
+			go func() {
+				if _, err := io.Copy(cf, c.Source); err != nil {
+					panic(err)
+				}
+
+				cf.Close()
+			}()
+		} else {
+			if _, err := io.Copy(cf, c.Source); err != nil {
+				return err
+			}
+
+			cf.Close()
 		}
 
-		cf.Close()
 	}
 
 	return nil
@@ -132,6 +150,10 @@ func (f *File) Paste(cop fileinfo.Copier) error {
 
 func (f *File) Delete(name string) error {
 	return os.RemoveAll(filepath.Join(f.curDir, name))
+}
+
+func (f *File) ProgressLogs() <-chan string {
+	return f.progress
 }
 
 func getFiles(path string) ([]fileinfo.FileInfo, error) {

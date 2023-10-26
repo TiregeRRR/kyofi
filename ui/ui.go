@@ -23,6 +23,7 @@ type Filer interface {
 	PasteReader() (fileinfo.Copier, error)
 	Paste(fileinfo.Copier) error
 	Delete(string) error
+	ProgressLogs() <-chan string
 }
 
 type App struct {
@@ -116,6 +117,23 @@ func New() (*App, error) {
 	}, nil
 }
 
+func (a *App) handleLogs() {
+	go func() {
+		for {
+			for v := range a.leftFiler.ProgressLogs() {
+				a.info(v)
+			}
+		}
+	}()
+	go func() {
+		for {
+			for v := range a.rightFiler.ProgressLogs() {
+				a.info(v)
+			}
+		}
+	}()
+}
+
 func (a *App) update() error {
 	fi, err := a.leftFiler.Open("")
 	if err != nil {
@@ -153,6 +171,8 @@ func (a *App) Run() error {
 
 	a.app = app
 	a.app.SetInputCapture(a.handleInput)
+
+	go a.handleLogs()
 
 	if err := a.app.SetRoot(a.grid, true).SetFocus(a.leftTable).EnableMouse(true).Run(); err != nil {
 		return err
@@ -241,9 +261,9 @@ func (a *App) paste() error {
 	)
 	switch {
 	case a.leftTable.HasFocus():
-		name, err = paste(a.leftFiler, a.rightFiler)
+		name, err = a._paste(a.leftFiler, a.rightFiler)
 	case a.rightTable.HasFocus():
-		name, err = paste(a.rightFiler, a.leftFiler)
+		name, err = a._paste(a.rightFiler, a.leftFiler)
 
 	}
 
@@ -359,15 +379,17 @@ func copy(table *tview.Table, filer Filer) error {
 	return nil
 }
 
-func paste(dst Filer, src Filer) (string, error) {
+func (a *App) _paste(dst Filer, src Filer) (string, error) {
 	cop, err := src.PasteReader()
 	if err != nil {
 		return "", err
 	}
 
-	if err := dst.Paste(cop); err != nil {
-		return "", err
-	}
+	go func() {
+		if err := dst.Paste(cop); err != nil {
+			a.err(err)
+		}
+	}()
 
 	return "", nil
 }

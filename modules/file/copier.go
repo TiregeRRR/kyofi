@@ -1,12 +1,14 @@
 package file
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 
 	fileinfo "github.com/TiregeRRR/kyofi/file_info"
+	"github.com/TiregeRRR/kyofi/modules/utils"
 )
 
 type FileCopier struct {
@@ -14,6 +16,8 @@ type FileCopier struct {
 	cnt   atomic.Int64
 	paths []string
 	size  int64
+
+	pCh chan<- string
 }
 
 func (f *FileCopier) File() (fileinfo.CopyInfo, error) {
@@ -33,11 +37,14 @@ func (f *FileCopier) File() (fileinfo.CopyInfo, error) {
 		return fileinfo.CopyInfo{}, err
 	}
 
+	p := utils.NewProgresser(inf.Name(), inf.Size(), f.pCh)
+	teeFile := io.TeeReader(file, p)
+
 	pathWithoutFile := filepath.Dir(f.paths[f.cnt.Load()])
 	relativePath := strings.TrimPrefix(pathWithoutFile, f.base)
 
 	return fileinfo.CopyInfo{
-		Source: file,
+		Source: teeFile,
 		Name:   inf.Name(),
 		Path:   relativePath,
 		Size:   inf.Size(),

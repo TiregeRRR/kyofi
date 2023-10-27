@@ -108,6 +108,9 @@ func (m *Minio) ProgressLogs() <-chan string {
 	return nil
 }
 
+func (m *Minio) Close() {
+}
+
 func (m *Minio) bucketList() ([]fileinfo.FileInfo, error) {
 	buckets, err := m.minioClient.ListBuckets(context.Background())
 	if err != nil {

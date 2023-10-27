@@ -6,6 +6,7 @@ import (
 
 	"github.com/TiregeRRR/kyofi/modules/file"
 	"github.com/TiregeRRR/kyofi/modules/minio"
+	"github.com/TiregeRRR/kyofi/modules/ssh"
 	"github.com/TiregeRRR/kyofi/ui/primitives"
 	"github.com/rivo/tview"
 )
@@ -14,10 +15,10 @@ func (a *App) selectWindow() error {
 	var err error
 
 	switch {
-	case a.leftTable.HasFocus():
-		err = a.drawSelectWindow(a.leftTable, true)
-	case a.rightTable.HasFocus():
-		err = a.drawSelectWindow(a.rightTable, false)
+	case a.leftSide.HasFocus():
+		err = a.drawSelectWindow(a.leftSide, true)
+	case a.rightSide.HasFocus():
+		err = a.drawSelectWindow(a.rightSide, false)
 	}
 
 	if err != nil {
@@ -38,19 +39,24 @@ func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 			path, err := os.Getwd()
 			if err != nil {
 				a.err(err)
+
+				return
 			}
 			if left {
+				a.leftFiler.Close()
 				a.leftFiler = file.New(path)
-				a.leftTable.SetBorder(true).SetTitle("File")
 			} else {
+				a.rightFiler.Close()
 				a.rightFiler = file.New(path)
-				a.rightTable.SetBorder(true).SetTitle("File")
 			}
 		case "Minio":
 			form := a.minioSelectForm(p, left)
 			a.swapContexts(slc, form)
 
 			return
+		case "SSH":
+			form := a.sshSelectForm(p, left)
+			a.swapContexts(slc, form)
 		}
 
 		a.swapContexts(slc, p)
@@ -65,7 +71,8 @@ func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 func (a *App) selectTable() *tview.Table {
 	table := primitives.NewTable().
 		SetCell(0, 0, tview.NewTableCell("File").SetAlign(tview.AlignCenter)).
-		SetCell(1, 0, tview.NewTableCell("Minio").SetAlign(tview.AlignCenter))
+		SetCell(1, 0, tview.NewTableCell("Minio").SetAlign(tview.AlignCenter)).
+		SetCell(2, 0, tview.NewTableCell("SSH").SetAlign(tview.AlignCenter))
 
 	return table
 }
@@ -111,6 +118,49 @@ func (a *App) minioSelectForm(p tview.Primitive, left bool) *tview.Form {
 		AddInputField("Secret Access Key", "", 50, nil, nil).
 		AddCheckbox("Use SSL", false, nil).
 		AddCheckbox("Insecure", false, nil).
+		AddButton("Connect", connect).
+		AddButton("Exit", exit)
+
+	return form
+}
+
+func (a *App) sshSelectForm(p tview.Primitive, left bool) *tview.Form {
+	form := primitives.NewForm()
+
+	exit := func() {
+		a.swapContexts(form, p)
+	}
+
+	var conn atomic.Bool
+
+	connect := func() {
+		if conn.Load() {
+			return
+		}
+		conn.Store(true)
+
+		m, err := ssh.New(ssh.Opts{
+			Addr:     form.GetFormItem(0).(*tview.InputField).GetText(),
+			User:     form.GetFormItem(1).(*tview.InputField).GetText(),
+			Password: form.GetFormItem(2).(*tview.InputField).GetText(),
+		})
+		if err != nil {
+			a.err(err)
+			exit()
+			return
+		}
+
+		a.swapContextsWithFiler(form, p, m)
+
+		if err := a.update(); err != nil {
+			a.err(err)
+		}
+	}
+
+	form.
+		AddInputField("Address", "", 50, nil, nil).
+		AddInputField("User", "", 50, nil, nil).
+		AddPasswordField("Password", "", 50, '*', nil).
 		AddButton("Connect", connect).
 		AddButton("Exit", exit)
 

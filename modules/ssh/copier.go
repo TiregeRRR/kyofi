@@ -1,17 +1,19 @@
-package file
+package ssh
 
 import (
 	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 
 	fileinfo "github.com/TiregeRRR/kyofi/file_info"
 	"github.com/TiregeRRR/kyofi/modules/utils"
+	"github.com/pkg/sftp"
 )
 
-type FileCopier struct {
+type SSHCopier struct {
+	sftpClient *sftp.Client
+
 	base  string
 	cnt   atomic.Int64
 	paths []string
@@ -19,14 +21,14 @@ type FileCopier struct {
 	pCh chan<- string
 }
 
-func (f *FileCopier) File() (fileinfo.CopyInfo, error) {
-	if int(f.cnt.Load()) >= len(f.paths) {
+func (s *SSHCopier) File() (fileinfo.CopyInfo, error) {
+	if int(s.cnt.Load()) >= len(s.paths) {
 		return fileinfo.CopyInfo{}, nil
 	}
 
-	defer f.cnt.Add(1)
+	defer s.cnt.Add(1)
 
-	file, err := os.Open(f.paths[f.cnt.Load()])
+	file, err := s.sftpClient.Open(s.paths[s.cnt.Load()])
 	if err != nil {
 		return fileinfo.CopyInfo{}, err
 	}
@@ -36,11 +38,11 @@ func (f *FileCopier) File() (fileinfo.CopyInfo, error) {
 		return fileinfo.CopyInfo{}, err
 	}
 
-	p := utils.NewProgresser(inf.Name(), inf.Size(), f.pCh)
+	p := utils.NewProgresser(file.Name(), inf.Size(), s.pCh)
 	teeFile := io.TeeReader(file, p)
 
-	pathWithoutFile := filepath.Dir(f.paths[f.cnt.Load()])
-	relativePath := strings.TrimPrefix(pathWithoutFile, f.base)
+	pathWithoutFile := filepath.Dir(s.paths[s.cnt.Load()])
+	relativePath := strings.TrimPrefix(pathWithoutFile, s.base)
 
 	return fileinfo.CopyInfo{
 		Source: teeFile,
@@ -50,6 +52,6 @@ func (f *FileCopier) File() (fileinfo.CopyInfo, error) {
 	}, nil
 }
 
-func (f *FileCopier) Next() bool {
-	return int(f.cnt.Load()) < len(f.paths)
+func (s *SSHCopier) Next() bool {
+	return int(s.cnt.Load()) < len(s.paths)
 }

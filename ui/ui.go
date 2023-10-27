@@ -24,6 +24,7 @@ type Filer interface {
 	Paste(fileinfo.Copier) error
 	Delete(string) error
 	ProgressLogs() <-chan string
+	Close()
 }
 
 type App struct {
@@ -57,46 +58,6 @@ func New() (*App, error) {
 	leftTable := primitives.NewTable()
 	rightTable := primitives.NewTable()
 
-	leftTable.SetSelectedFunc(func(row, column int) {
-		file := leftTable.GetCell(row, column).Text
-		var (
-			fi  []fileinfo.FileInfo
-			err error
-		)
-
-		if file == ".." {
-			fi, err = leftFiler.Back()
-		} else {
-			fi, err = leftFiler.Open(file)
-		}
-
-		if err != nil {
-			panic(err)
-		}
-
-		primitives.UpdateTable(leftTable, fi)
-	})
-
-	rightTable.SetSelectedFunc(func(row, column int) {
-		file := rightTable.GetCell(row, column).Text
-		var (
-			fi  []fileinfo.FileInfo
-			err error
-		)
-
-		if file == ".." {
-			fi, err = rightFiler.Back()
-		} else {
-			fi, err = rightFiler.Open(file)
-		}
-
-		if err != nil {
-			panic(err)
-		}
-
-		primitives.UpdateTable(rightTable, fi)
-	})
-
 	output := primitives.NewTextView()
 
 	grid.
@@ -122,6 +83,7 @@ func (a *App) handleLogs() {
 		for {
 			for v := range a.leftFiler.ProgressLogs() {
 				a.info(v)
+				a.app.Draw()
 			}
 		}
 	}()
@@ -129,6 +91,7 @@ func (a *App) handleLogs() {
 		for {
 			for v := range a.rightFiler.ProgressLogs() {
 				a.info(v)
+				a.app.Draw()
 			}
 		}
 	}()
@@ -159,6 +122,46 @@ func (a *App) update() error {
 }
 
 func (a *App) Run() error {
+	a.leftTable.SetSelectedFunc(func(row, column int) {
+		file := a.leftTable.GetCell(row, column).Text
+		var (
+			fi  []fileinfo.FileInfo
+			err error
+		)
+
+		if file == ".." {
+			fi, err = a.leftFiler.Back()
+		} else {
+			fi, err = a.leftFiler.Open(file)
+		}
+
+		if err != nil {
+			panic(err)
+		}
+
+		primitives.UpdateTable(a.leftTable, fi)
+	})
+
+	a.rightTable.SetSelectedFunc(func(row, column int) {
+		file := a.rightTable.GetCell(row, column).Text
+		var (
+			fi  []fileinfo.FileInfo
+			err error
+		)
+
+		if file == ".." {
+			fi, err = a.rightFiler.Back()
+		} else {
+			fi, err = a.rightFiler.Open(file)
+		}
+
+		if err != nil {
+			panic(err)
+		}
+
+		primitives.UpdateTable(a.rightTable, fi)
+	})
+
 	fi, err := a.leftFiler.Open("")
 	if err != nil {
 		return err
@@ -329,8 +332,10 @@ func (a *App) delete() {
 func (a *App) swapContextsWithFiler(cur tview.Primitive, tar tview.Primitive, fi Filer) {
 	switch {
 	case a.leftSide == cur:
+		a.leftFiler.Close()
 		a.leftFiler = fi
 	case a.rightSide == cur:
+		a.rightFiler.Close()
 		a.rightFiler = fi
 	}
 
@@ -346,7 +351,7 @@ func (a *App) swapContexts(cur tview.Primitive, tar tview.Primitive) {
 		a.app.SetFocus(a.leftSide)
 	case a.rightSide == cur:
 		a.grid.RemoveItem(cur)
-		a.grid.AddItem(tar, 0, 0, 15, 8, 0, 80, true)
+		a.grid.AddItem(tar, 0, 8, 15, 8, 0, 80, true)
 		a.rightSide = tar
 		a.app.SetFocus(a.rightSide)
 	}

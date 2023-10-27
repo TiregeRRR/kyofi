@@ -72,7 +72,6 @@ func (f *File) PasteReader() (fileinfo.Copier, error) {
 		return &FileCopier{
 			base:  filepath.Dir(f.copyPath),
 			paths: []string{f.copyPath},
-			size:  inf.Size(),
 			pCh:   f.progress,
 		}, nil
 	}
@@ -93,13 +92,6 @@ func (f *File) PasteReader() (fileinfo.Copier, error) {
 		}
 
 		cop.paths = append(cop.paths, path)
-
-		inf, err := d.Info()
-		if err != nil {
-			return err
-		}
-
-		cop.size += inf.Size()
 
 		return nil
 	}); err != nil {
@@ -127,21 +119,11 @@ func (f *File) Paste(cop fileinfo.Copier) error {
 			return err
 		}
 
-		if c.Size > 1<<20 {
-			go func() {
-				if _, err := io.Copy(cf, c.Source); err != nil {
-					panic(err)
-				}
-
-				cf.Close()
-			}()
-		} else {
-			if _, err := io.Copy(cf, c.Source); err != nil {
-				return err
-			}
-
-			cf.Close()
+		if _, err := io.Copy(cf, c.Source); err != nil {
+			panic(err)
 		}
+
+		cf.Close()
 
 	}
 
@@ -154,6 +136,10 @@ func (f *File) Delete(name string) error {
 
 func (f *File) ProgressLogs() <-chan string {
 	return f.progress
+}
+
+func (f *File) Close() {
+	close(f.progress)
 }
 
 func getFiles(path string) ([]fileinfo.FileInfo, error) {

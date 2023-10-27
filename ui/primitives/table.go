@@ -26,7 +26,7 @@ func UpdateTable(t *tview.Table, fi []fileinfo.FileInfo) {
 	t.Clear()
 	TableHeader(t)
 	for i := range fi {
-		t.SetCell(i+2, 0, tview.NewTableCell(fi[i].Name).SetAlign(tview.AlignLeft).SetExpansion(1).SetSelectable(true))
+		t.SetCell(i+2, 0, tview.NewTableCell(fi[i].Name).SetAlign(tview.AlignLeft).SetExpansion(1).SetSelectable(true).SetMaxWidth(40))
 		t.SetCell(i+2, 1, tview.NewTableCell(fi[i].Size).SetAlign(tview.AlignLeft).SetExpansion(1).SetSelectable(true))
 		t.SetCell(i+2, 2, tview.NewTableCell(fi[i].Permision).SetAlign(tview.AlignRight).SetExpansion(1).SetSelectable(true))
 	}

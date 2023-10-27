@@ -70,9 +70,9 @@ func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 
 func (a *App) selectTable() *tview.Table {
 	table := primitives.NewTable().
-		SetCell(0, 0, tview.NewTableCell("File").SetAlign(tview.AlignCenter)).
-		SetCell(1, 0, tview.NewTableCell("Minio").SetAlign(tview.AlignCenter)).
-		SetCell(2, 0, tview.NewTableCell("SSH").SetAlign(tview.AlignCenter))
+		SetCell(0, 0, tview.NewTableCell("File")).
+		SetCell(1, 0, tview.NewTableCell("Minio")).
+		SetCell(2, 0, tview.NewTableCell("SSH"))
 
 	return table
 }

@@ -80,6 +80,8 @@ func (a *App) selectTable() *tview.Table {
 func (a *App) minioSelectForm(p tview.Primitive, left bool) *tview.Form {
 	form := primitives.NewForm()
 
+	form.SetBorder(true).SetTitle("Minio")
+
 	exit := func() {
 		a.swapContexts(form, p)
 	}
@@ -126,6 +128,8 @@ func (a *App) minioSelectForm(p tview.Primitive, left bool) *tview.Form {
 
 func (a *App) sshSelectForm(p tview.Primitive, left bool) *tview.Form {
 	form := primitives.NewForm()
+
+	form.SetBorder(true).SetTitle("SSH")
 
 	exit := func() {
 		a.swapContexts(form, p)

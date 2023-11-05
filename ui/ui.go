@@ -123,7 +123,7 @@ func (a *App) update() error {
 
 func (a *App) Run() error {
 	a.leftTable.SetSelectedFunc(func(row, column int) {
-		file := a.leftTable.GetCell(row, column).Text
+		file := a.leftTable.GetCell(row, 0).Text
 		var (
 			fi  []fileinfo.FileInfo
 			err error
@@ -143,7 +143,7 @@ func (a *App) Run() error {
 	})
 
 	a.rightTable.SetSelectedFunc(func(row, column int) {
-		file := a.rightTable.GetCell(row, column).Text
+		file := a.rightTable.GetCell(row, 0).Text
 		var (
 			fi  []fileinfo.FileInfo
 			err error

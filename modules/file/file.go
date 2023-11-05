@@ -43,7 +43,7 @@ func (f *File) Open(path string) ([]fileinfo.FileInfo, error) {
 
 	f.curDir = newPath
 
-	return getFiles(newPath)
+	return getFiles(f.curDir)
 }
 
 func (f *File) Back() ([]fileinfo.FileInfo, error) {
@@ -109,12 +109,12 @@ func (f *File) Paste(cop fileinfo.Copier) error {
 		}
 
 		if c.Path != "" {
-			if err := os.MkdirAll(c.Path, 0770); err != nil {
+			if err := os.MkdirAll(filepath.Join(f.curDir, c.Path), 0770); err != nil {
 				return err
 			}
 		}
 
-		cf, err := os.Create(filepath.Join(c.Path, c.Name))
+		cf, err := os.Create(filepath.Join(f.curDir, c.Path, c.Name))
 		if err != nil {
 			return err
 		}

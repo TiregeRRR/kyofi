@@ -57,6 +57,8 @@ func (a *App) drawSelectWindow(p tview.Primitive, left bool) error {
 		case "SSH":
 			form := a.sshSelectForm(p, left)
 			a.swapContexts(slc, form)
+
+			return
 		}
 
 		a.swapContexts(slc, p)

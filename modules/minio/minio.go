@@ -3,7 +3,11 @@ package minio
 import (
 	"context"
 	"crypto/tls"
+	"errors"
+	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	fileinfo "github.com/TiregeRRR/kyofi/file_info"
@@ -14,6 +18,13 @@ import (
 
 type Minio struct {
 	minioClient *minio.Client
+
+	copyBucket string
+	copyPath   string
+	curBucket  string
+	curPath    string
+
+	pCh chan string
 }
 
 type Opts struct {
@@ -45,58 +56,136 @@ func New(opts Opts) (*Minio, error) {
 		return nil, err
 	}
 
-	if _, err := cl.ListBuckets(context.Background()); err != nil {
-		return nil, err
-	}
-
 	return &Minio{
 		minioClient: cl,
+		pCh:         make(chan string),
 	}, nil
 }
 
 func (m *Minio) Open(path string) ([]fileinfo.FileInfo, error) {
-	switch path {
-	case "":
-
-		obj, err := m.minioClient.GetObject(context.Background(), "datasets", "PROJECT/OI/ROMEN_test/event_pubs.parquet", minio.GetObjectOptions{})
-		if err != nil {
-			return nil, err
-		}
+	switch {
+	case path == "" && m.curBucket == "":
 		list, err := m.bucketList()
 		if err != nil {
 			return nil, err
 		}
 
-		st, err := obj.Stat()
+		return list, nil
+
+	case m.curBucket == "":
+		m.curBucket = path
+
+		files, err := m.bucketFiles()
 		if err != nil {
+			m.curBucket = ""
 			return nil, err
 		}
 
-		list = append(list, fileinfo.FileInfo{
-			Name:      st.Key,
-			Size:      utils.FormatBytes(float64(st.Size)),
-			Permision: "",
-		})
-
-		return list, nil
+		return files, nil
 	default:
-		return nil, nil
+		if path != "" {
+			m.curPath = path
+		}
+
+		files, err := m.bucketFiles()
+		if err != nil {
+			m.curBucket = ""
+			return nil, err
+		}
+
+		return files, nil
 	}
 }
 
 func (m *Minio) Back() ([]fileinfo.FileInfo, error) {
+	switch {
+	case m.curPath != "":
+		f := strings.Split(m.curPath, "/")
+		if len(f) == 2 {
+			m.curPath = ""
+			return m.bucketFiles()
+		}
+
+		m.curPath = strings.Join(f[:len(f)-1], "/")
+
+		return m.bucketFiles()
+	case m.curBucket != "":
+		m.curBucket = ""
+		return m.bucketList()
+	}
+
 	return nil, nil
 }
 
 func (m *Minio) Copy(name string) error {
+	m.copyBucket = m.curBucket
+	m.copyPath = filepath.Join(m.curPath, name)
+	if strings.Contains(name, "/") {
+		m.copyPath += "/"
+	}
+
 	return nil
 }
 
 func (m *Minio) PasteReader() (fileinfo.Copier, error) {
-	return nil, nil
+	if m.copyPath == "" {
+		return nil, errors.New("nothing in buffer")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	absPart := m.copyPath
+
+	if !strings.HasSuffix(m.copyPath, "/") {
+		inf, err := m.minioClient.StatObject(ctx, m.copyBucket, m.copyPath, minio.GetObjectOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("stat object %s bucket %s failed: %w", m.copyPath, m.copyBucket, err)
+		}
+
+		if inf.Size != 0 {
+			return &MinioCopier{
+				minioClient: m.minioClient,
+				bucket:      m.copyBucket,
+				base:        filepath.Dir(m.copyPath),
+				paths:       []string{m.copyPath},
+				pCh:         m.pCh,
+			}, nil
+		}
+
+		absPart = filepath.Dir(m.copyPath) + "/"
+	}
+
+	cop := MinioCopier{
+		minioClient: m.minioClient,
+		bucket:      m.copyBucket,
+		base:        absPart,
+		pCh:         m.pCh,
+	}
+
+	for obj := range m.minioClient.ListObjects(ctx, m.curBucket, minio.ListObjectsOptions{Prefix: absPart}) {
+		if obj.Err != nil {
+			return nil, fmt.Errorf("list object %s failed: %w", obj.Key, obj.Err)
+		}
+
+		if obj.Size == 0 {
+			continue
+		}
+
+		cop.paths = append(cop.paths, obj.Key)
+	}
+
+	return &cop, nil
 }
 
 func (m *Minio) Paste(cop fileinfo.Copier) error {
+	for cop.Next() {
+		_, err := cop.File()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -105,10 +194,11 @@ func (m *Minio) Delete(string) error {
 }
 
 func (m *Minio) ProgressLogs() <-chan string {
-	return nil
+	return m.pCh
 }
 
 func (m *Minio) Close() {
+	close(m.pCh)
 }
 
 func (m *Minio) bucketList() ([]fileinfo.FileInfo, error) {
@@ -126,4 +216,33 @@ func (m *Minio) bucketList() ([]fileinfo.FileInfo, error) {
 	}
 
 	return s, nil
+}
+
+func (m *Minio) bucketFiles() ([]fileinfo.FileInfo, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	f := []fileinfo.FileInfo{}
+
+	var err error
+
+	for obj := range m.minioClient.ListObjects(ctx, m.curBucket, minio.ListObjectsOptions{Prefix: m.curPath}) {
+		if obj.Err != nil {
+			err = obj.Err
+		}
+
+		name := strings.TrimPrefix(obj.Key, m.curPath)
+		size := "DIR"
+		if obj.Size != 0 {
+			size = utils.FormatBytes(float64(obj.Size))
+		}
+
+		f = append(f, fileinfo.FileInfo{
+			Name:      name,
+			Size:      size,
+			Permision: obj.Owner.DisplayName,
+		})
+	}
+
+	return f, err
 }

@@ -12,32 +12,17 @@ func main() {
 		panic(err)
 	}
 
-	// s, err := ssh.New()
+	// s, err := minio.New(minio.Opts{
+	// 	Endpoint:        "172.18.0.2:9000",
+	// 	AccessKeyID:     "root",
+	// 	SecretAccessKey: "rootroot",
+	// })
 	// if err != nil {
 	// 	panic(err)
 	// }
 
-	// f, err := s.Open("")
+	// _, err = s.Open("bucket1")
 	// if err != nil {
 	// 	panic(err)
-	// }
-
-	// for i := range f {
-	// 	fmt.Printf("%v\n", f[i])
-	// }
-
-	// err = s.Copy("local")
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// p, err := s.PasteReader()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Println(p)
-
-	// for p.Next() {
-	// 	p.File()
 	// }
 }

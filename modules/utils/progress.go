@@ -14,6 +14,10 @@ type Progresser struct {
 }
 
 func NewProgresser(name string, size int64, pCh chan<- string) *Progresser {
+	if pCh == nil {
+		panic("nil channel")
+	}
+
 	return &Progresser{
 		name: name,
 		size: size,
@@ -27,7 +31,10 @@ func (p *Progresser) Write(data []byte) (int, error) {
 	p.prcCnt += int64(len(data))
 
 	if p.prcCnt > p.prc || p.wrote == p.size {
-		p.pCh <- fmt.Sprintf("%s: %f%%/100%%", p.name, float64(p.wrote)/float64(p.size)*100.0)
+		go func(wrote, total int64) {
+			p.pCh <- fmt.Sprintf("%s: %f%%/100%%", p.name, float64(wrote)/float64(total)*100.0)
+		}(p.wrote, p.size)
+
 		p.prcCnt = 0
 	}
 
